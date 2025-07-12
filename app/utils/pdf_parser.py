@@ -1,30 +1,31 @@
-import fitz  # PyMuPDF
+import pdfplumber
 
-def extract_pdf_data(file):
-    doc = fitz.open(stream=file.read(), filetype='pdf')
-    text = ''
-    for page in doc:
-        text += page.get_text()
+def extract_pdf_data(file_obj):
+    with pdfplumber.open(file_obj) as pdf:
+        text = ""
+        for page in pdf.pages:
+            text += page.extract_text() + "\n"
 
-    # Basic extraction logic
-    address = ""
-    council = ""
-    area = ""
-    constraints = ""
+    # Fallbacks in case not found
+    address = "Not found"
+    council = "Not found"
+    area = "Not found"
+    constraints = "Not found"
 
-    for line in text.split('\n'):
-        if 'Address:' in line:
-            address = line.split('Address:')[-1].strip()
-        if 'Council:' in line:
-            council = line.split('Council:')[-1].strip()
-        if 'Area:' in line:
-            area = line.split('Area:')[-1].strip()
-        if 'Constraints:' in line:
-            constraints = line.split('Constraints:')[-1].strip()
+    for line in text.splitlines():
+        line = line.strip()
+        if "Address:" in line:
+            address = line.split("Address:")[-1].strip()
+        elif "Council:" in line:
+            council = line.split("Council:")[-1].strip()
+        elif "Area:" in line or "Built Area:" in line:
+            area = line.split(":")[-1].strip()
+        elif "Constraints:" in line:
+            constraints = line.split("Constraints:")[-1].strip()
 
     return {
-        "property_address": address or "Not found",
-        "council_name": council or "Not found",
-        "total_area": area or "Not found",
-        "constraints": constraints or "Not found"
+        "property_address": address,
+        "council_name": council,
+        "total_area": area,
+        "constraints": constraints
     }

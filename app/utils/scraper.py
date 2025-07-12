@@ -3,44 +3,61 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 def scrape_planning_portal(url):
-    response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-    soup = BeautifulSoup(response.content, 'html.parser')
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+    response = requests.get(url, headers=headers)
 
+    if response.status_code != 200:
+        return {"error": f"Failed to fetch URL: {url}"}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Extract property address
+    try:
+        address_section = soup.find('span', {'id': 'ctl00_MainContent_lblSiteAddress'})
+        address = address_section.text.strip() if address_section else "Not found"
+    except:
+        address = "Not found"
+
+    # Extract validated and approved dates
     validated_date = None
     approved_date = None
-    property_address = None
-    documents = []
 
-    # Simple heuristics
-    for row in soup.find_all('tr'):
-        text = row.get_text()
-        if 'Valid' in text and 'Date' in text:
-            validated_date = row.find_all('td')[-1].get_text(strip=True)
-        if 'Approved' in text:
-            approved_date = row.find_all('td')[-1].get_text(strip=True)
-        if 'Address' in text:
-            property_address = row.find_all('td')[-1].get_text(strip=True)
+    for row in soup.select('table tr'):
+        cells = row.find_all('td')
+        if len(cells) == 2:
+            label = cells[0].text.strip()
+            value = cells[1].text.strip()
 
-    # Parse dates and calculate timeline
+            if "Validated" in label:
+                validated_date = value
+            if "Decision Issued" in label or "Decision Date" in label:
+                approved_date = value
+
+    # Parse timeline
+    timeline_weeks = 0
     try:
-        d1 = datetime.strptime(validated_date, "%d/%m/%Y")
-        d2 = datetime.strptime(approved_date, "%d/%m/%Y")
-        delta = (d2 - d1).days // 7
+        if validated_date and approved_date:
+            d1 = datetime.strptime(validated_date, "%d/%m/%Y")
+            d2 = datetime.strptime(approved_date, "%d/%m/%Y")
+            timeline_weeks = (d2 - d1).days // 7
     except:
-        delta = 0
+        pass
 
-    # Document links
-    for link in soup.find_all('a', href=True):
-        if '.pdf' in link['href'].lower():
+    # Extract document links
+    documents = []
+    for link in soup.find_all("a", href=True):
+        if ".pdf" in link["href"]:
             documents.append({
-                'name': link.get_text(strip=True),
-                'url': link['href']
+                "name": link.text.strip(),
+                "url": link["href"]
             })
 
     return {
-        "validated_date": validated_date or "N/A",
-        "approved_date": approved_date or "N/A",
-        "timeline_weeks": delta,
-        "property_address": property_address or "N/A",
+        "property_address": address,
+        "validated_date": validated_date,
+        "approved_date": approved_date,
+        "timeline_weeks": timeline_weeks,
         "documents": documents
     }
