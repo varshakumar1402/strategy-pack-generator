@@ -1,0 +1,9 @@
+Flask
+python-pptx
+requests
+beautifulsoup4
+PyMuPDF
+pdfplumber
+matplotlib
+Pillow
+graphviz
